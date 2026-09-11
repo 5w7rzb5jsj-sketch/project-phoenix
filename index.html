@@ -66,11 +66,11 @@ async function load(){
   document.getElementById('messages').innerHTML = msgs.map(m=>`<div class=msg><div class=role>${m.role||'user'}</div>${(m.content||'').slice(0,500)}</div>`).join('') || '<div style=color:#555>Welcome to Phoenix v3 theatre — send first message (bounded memory active)</div>';
   // Theatre animation
   if(msgs.length>0){
-   let last = msgs[msgs.length-1].content||'';
-   document.getElementById('oracle').textContent = 'Sees: "'+last.slice(0,80)+'" → analyzing...';
-   document.getElementById('architect').textContent = 'Plans: Breaking into 3 steps...';
-   document.getElementById('executor').textContent = 'Builds: Executing with bounded memory';
-  }
+  let novas = msgs.filter(m=>m.role==='nova'); let quarks = msgs.filter(m=>m.role==='quark'); let sages = msgs.filter(m=>m.role==='sage');
+  if(novas.length) document.getElementById('oracle').textContent = novas[novas.length-1].content;
+  if(quarks.length) document.getElementById('architect').textContent = quarks[quarks.length-1].content;
+  if(sages.length) document.getElementById('executor').textContent = sages[sages.length-1].content;
+}
  }catch(e){ console.log(e)}
 }
 async function send(){
