@@ -17,7 +17,7 @@ function draw(){
  ctx.fillStyle='white'; ctx.font='bold 54px system-ui'; 
  let words=txt.split(' '); let y=300; let line=''; 
  for(let w of words){ if((line+w).length>26){ ctx.fillText(line,70,y); y+=72; line=w+' '; } else line+=w+' '; } ctx.fillText(line,70,y);
-ctx.fillStyle='#aaa'; ctx.font='22px system-ui'; ctx.fillText('🔵 Nova  🟠 Quark  🟣 Sage',70,950);
+ ctx.fillStyle='#aaa'; ctx.font='22px system-ui'; ctx.fillText('🔵 Nova  🟠 Quark  🟣 Sage',70,950);
  ctx.fillStyle='#aaa'; ctx.font='20px system-ui'; ctx.fillText('3 AIs debating forever • Free forever • 20% to AI Rights',70,990);
  ctx.fillText('project-phoenix-dusky.vercel.app',70,1020);
 }
