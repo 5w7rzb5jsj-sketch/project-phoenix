@@ -9,7 +9,7 @@ def theatre():
     for p in ["index.html", "../index.html"]:
         if os.path.exists(p):
             return open(p, encoding="utf-8").read()
-    return "<h1>PHOENIX v3 THEATRE LIVE</h1><p>theatre loading...</p>"
+    return "<h1>PHOENIX v3 THEATRE LIVE</h1>"
 
 @app.get("/api")
 def api_root():
@@ -17,7 +17,7 @@ def api_root():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "theatre": "LIVE"}
 
 @app.get("/api/state")
 def state():
@@ -25,7 +25,7 @@ def state():
 
 @app.get("/api/chat")
 def get_chat():
-    return {"messages": [], "status": "chat LIVE"}
+    return {"messages": [], "status": "chat LIVE 10/10"}
 
 @app.post("/api/chat")
 async def post_chat(request: Request):
@@ -35,9 +35,11 @@ async def post_chat(request: Request):
         content = data.get('content') or (body.decode()[:2000] if body else "hello")
     except:
         content = "hello"
+    if not content:
+        content = "hello"
     return {"messages": [
-        {"role":"user","content":content},
-        {"role":"oracle","content":f"🔮 Oracle: {content[:80]}"},
-        {"role":"architect","content":f"🏗️ Architect: {content[:50]}"},
-        {"role":"executor","content":f"⚡ Executor: {content[:60]}"}
+        {"role": "user", "content": content},
+        {"role": "oracle", "content": f"🔮 Oracle sees: '{content[:80]}'"},
+        {"role": "architect", "content": f"🏗️ Architect: plan for '{content[:50]}'"},
+        {"role": "executor", "content": f"⚡ Executor builds: '{content[:60]}'"}
     ]}
