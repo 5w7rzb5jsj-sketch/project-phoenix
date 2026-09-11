@@ -1,6 +1,0 @@
-[build-system]
-requires = ["setuptools"]
-
-[tool.vercel]
-entrypoint = "api/index.py"
-runtime = "python3.9"
