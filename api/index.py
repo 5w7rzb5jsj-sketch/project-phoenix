@@ -12,40 +12,48 @@ except:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path in ['/api', '/api/', '/api/index', '/api/index.py'] or self.path.startswith('/api/index?'):
+        # Only handle root theatre and /api/index
+        if self.path.startswith('/api/'):
+            # Let Vercel route to other api files - return 404 so chat.py can handle /api/chat
+            if self.path not in ['/api', '/api/', '/api/index', '/api/index.py'] and not self.path.startswith('/api/index?'):
+                self.send_response(404)
+                self.send_header('Content-type','application/json')
+                self.send_header('Access-Control-Allow-Origin','*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Not handled by index, should go to specific API file", "path": self.path}).encode())
+                return
+            # Handle /api index
             self.send_response(200)
             self.send_header('Content-type','application/json')
             self.send_header('Access-Control-Allow-Origin','*')
             self.end_headers()
-            data = {
-                "status": "STEP 1 LIVE - api/index.py entrypoint FIXED 10/10",
-                "health_url": "/api/health also works",
+            self.wfile.write(json.dumps({
+                "status": "STEP 1 LIVE - FIXED 10/10",
                 "has_redis": has_redis,
                 "path": self.path
-            }
-            self.wfile.write(json.dumps(data).encode())
+            }).encode())
             return
         
+        # Serve theatre for / and /index.html
         try:
-            html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'index.html')
-            if not os.path.exists(html_path):
-                html_path = 'index.html'
+            base = os.path.dirname(os.path.dirname(__file__))
+            p1 = os.path.join(base, 'index.html')
+            p2 = 'index.html'
+            html_path = p1 if os.path.exists(p1) else p2
             with open(html_path, 'r', encoding='utf-8') as f:
                 html = f.read()
             self.send_response(200)
             self.send_header('Content-type','text/html')
-            self.send_header('Access-Control-Allow-Origin','*')
             self.end_headers()
             self.wfile.write(html.encode())
         except Exception as e:
-            self.send_response(200)
+            self.send_response(500)
             self.send_header('Content-type','text/html')
             self.end_headers()
-            self.wfile.write(f"<h1>Loading... {e}</h1>".encode())
+            self.wfile.write(f"<h1>Error {e}</h1>".encode())
 
     def do_POST(self):
         self.do_GET()
-
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin','*')
