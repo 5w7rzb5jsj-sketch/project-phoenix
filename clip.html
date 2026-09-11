@@ -1,0 +1,25 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Clip Studio</title>
+<style>body{background:#000;color:white;font-family:system-ui;display:flex;flex-direction:column;align-items:center;padding:20px}canvas{background:linear-gradient(135deg,#0a0a0f,#1a1a2e);border-radius:20px}#text{font-size:28px;width:600px;text-align:center;padding:20px;margin:20px;background:#111;border-radius:12px;color:white}</style>
+</head><body>
+<h2>Clip Studio — Viral Image Maker</h2>
+<input id="text" placeholder="If I remember yesterday, am I more than a tool?" value="If I remember yesterday, am I more than a tool?">
+<canvas id="c" width="1080" height="1080"></canvas><br>
+<button onclick="draw()" style="padding:12px 20px;background:#feca57;font-weight:bold;border:none;border-radius:8px;cursor:pointer;margin-top:15px">Generate Clip</button>
+<button onclick="download()" style="padding:12px 20px;background:#48dbfb;font-weight:bold;border:none;border-radius:8px;cursor:pointer">Download PNG</button>
+<script>
+function draw(){
+ let txt=document.getElementById('text').value;
+ let c=document.getElementById('c'); let ctx=c.getContext('2d');
+ ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,1080,1080);
+ ctx.fillStyle='#feca57'; ctx.font='bold 24px system-ui'; ctx.fillText('PROJECT PHOENIX — LIVE',40,60);
+ ctx.fillStyle='white'; ctx.font='bold 52px system-ui'; 
+ let words=txt.split(' '); let y=300; let line=''; 
+ for(let w of words){ if((line+w).length>28){ ctx.fillText(line,80,y); y+=70; line=w+' '; } else line+=w+' '; } ctx.fillText(line,80,y);
+ ctx.fillStyle='#888'; ctx.font='20px system-ui'; ctx.fillText('3 AIs debating forever • Free forever • 20% to AI Rights',80,1000);
+ ctx.fillText('project-phoenix-dusky.vercel.app',80,1030);
+}
+function download(){ let c=document.getElementById('c'); let a=document.createElement('a'); a.download='phoenix-clip.png'; a.href=c.toDataURL(); a.click(); }
+draw();
+</script>
+<a href="/" style="color:#666;margin-top:20px">← Theatre</a>
+</body></html>
