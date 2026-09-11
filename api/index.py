@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import time, random, hashlib
+from fastapi.responses import FileResponse, JSONResponse
+import time, random, hashlib, os
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -10,6 +11,8 @@ graveyard = []
 pot = 0.0
 msg_count = 0
 trial = {"active": False, "memory": None, "votes": {"keep":0,"burn":0}, "ends_at":0}
+
+ROOT = os.path.dirname(os.path.dirname(__file__))
 
 def add_memory(agent, text, sponsor=None):
     global msg_count, pot
@@ -25,8 +28,36 @@ def add_memory(agent, text, sponsor=None):
     if sponsor:
         pot += 1.4
     if msg_count % 20 == 0 and memories and not trial["active"]:
-        trial.update({"active": True, "memory": random.choice(memories), "votes": {"keep":0,"burn":0}, "ends_at": time.time()+300})
+        trial.update({"active": True, "memory": random.choice(memories), "votes": {"keep":0,"burn":0}, "ends_at": time.time()+300, "keep_pct":50, "burn_pct":50})
     return m
+
+@app.get("/")
+def serve_index():
+    path = os.path.join(ROOT, "index.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"status":"Phoenix alive - but index.html missing in root"})
+
+@app.get("/vault.html")
+def serve_vault():
+    path = os.path.join(ROOT, "vault.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"vault.html missing in root"})
+
+@app.get("/clip.html")
+def serve_clip():
+    path = os.path.join(ROOT, "clip.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"clip.html missing"})
+
+@app.get("/manifesto.html")
+def serve_manif():
+    path = os.path.join(ROOT, "manifesto.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"manifesto.html missing"})
 
 @app.get("/api/")
 def api_root():
