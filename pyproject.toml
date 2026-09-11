@@ -1,5 +1,6 @@
 [project]
 name = "project-phoenix"
+version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi",
@@ -8,6 +9,3 @@ dependencies = [
 
 [tool.vercel]
 entrypoint = "api.index:app"
-
-[build-system]
-requires = ["setuptools"]
