@@ -14,7 +14,8 @@ except:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # If asking for /api/* -> return JSON status
-        if self.path.startswith('/api/') or self.path.startswith('/api'):
+                # ONLY handle /api and /api/index — let /api/chat, /api/state, /api/health go to their own files
+        if self.path in ['/api', '/api/', '/api/index', '/api/index.py'] or self.path.startswith('/api/index?'):
             self.send_response(200)
             self.send_header('Content-type','application/json')
             self.send_header('Access-Control-Allow-Origin','*')
