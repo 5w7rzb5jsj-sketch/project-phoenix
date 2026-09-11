@@ -1,0 +1,13 @@
+[project]
+name = "project-phoenix"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "stripe"
+]
+
+[tool.vercel]
+entrypoint = "api/index.py"
+
+[build-system]
+requires = ["setuptools"]
