@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><body style="background:black;color:#0f0;font-family:monospace;padding:20px">
+<h1>🧠 MEMORY VAULT</h1>
+<div id="vault"></div>
+<a href="/" style="color:#0f0">← BACK</a>
+<script>
+let p = new URLSearchParams(location.search);
+if(p.get('paid')=='1'){
+  let t = p.get('text'); let s = p.get('sponsor');
+  let v = JSON.parse(localStorage.getItem('vault')||'[]');
+  v.push({t,s}); localStorage.setItem('vault',JSON.stringify(v));
+  location.href='/vault.html';
+}
+let v = JSON.parse(localStorage.getItem('vault')||'[]');
+document.getElementById('vault').innerHTML = v.length? v.map(m=>`<div style="border:1px solid #0f0;margin:10px;padding:10px">${m.t}<br><small>@${m.s}</small></div>`).join('') : 'No memories yet. Pay $7 to be first.';
+</script>
+</body></html>
