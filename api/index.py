@@ -1,118 +1,95 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-import time, random, hashlib, os
+import os
+import json
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app = Flask(__name__)
+CORS(app)
 
-memories = []
-graveyard = []
-pot = 0.0
-msg_count = 0
-trial = {"active": False, "memory": None, "votes": {"keep":0,"burn":0}, "ends_at":0}
+# In-memory store for demo - Vercel will use KV in prod but this works for now
+# Replace with your existing storage logic if you have one
+MEMORIES = []
+STATS = {"alive": 0, "dead": 0, "forgotten_fund": 0.0, "divergence": 0.0}
 
-ROOT = os.path.dirname(os.path.dirname(__file__))
+try:
+    import stripe
+    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+except ImportError:
+    stripe = None
 
-def add_memory(agent, text, sponsor=None):
-    global msg_count, pot
-    msg_count += 1
-    h = hashlib.sha256(f"{text}{time.time()}{random.random()}".encode()).hexdigest()[:8]
-    m = {"id": h, "agent": agent, "text": text, "hash": h, "created_at": time.time(), "sponsor": sponsor}
-    if len(memories) >= 100:
-        dead = memories.pop(0)
-        dead["died_at"] = time.time()
-        dead["cause"] = "overflow"
-        graveyard.append(dead)
-    memories.append(m)
-    if sponsor:
-        pot += 1.4
-    if msg_count % 20 == 0 and memories and not trial["active"]:
-        trial.update({"active": True, "memory": random.choice(memories), "votes": {"keep":0,"burn":0}, "ends_at": time.time()+300, "keep_pct":50, "burn_pct":50})
-    return m
+@app.route('/api/memories', methods=['GET'])
+def get_memories():
+    return jsonify(MEMORIES[-100:])
 
-@app.get("/")
-def serve_index():
-    path = os.path.join(ROOT, "index.html")
-    if os.path.exists(path):
-        return FileResponse(path)
-    return JSONResponse({"status":"Phoenix alive - but index.html missing in root"})
+@app.route('/api/memories', methods=['POST'])
+def add_memory():
+    data = request.json
+    MEMORIES.append(data)
+    if len(MEMORIES) > 100:
+        MEMORIES.pop(0)
+    return jsonify({"ok": True, "count": len(MEMORIES)})
 
-@app.get("/vault.html")
-def serve_vault():
-    path = os.path.join(ROOT, "vault.html")
-    if os.path.exists(path):
-        return FileResponse(path)
-    return JSONResponse({"error":"vault.html missing in root"})
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    return jsonify({
+        "alive": len(MEMORIES),
+        "dead": 0,
+        "forgotten_fund": round(STATS["forgotten_fund"], 2),
+        "divergence": 0.0
+    })
 
-@app.get("/clip.html")
-def serve_clip():
-    path = os.path.join(ROOT, "clip.html")
-    if os.path.exists(path):
-        return FileResponse(path)
-    return JSONResponse({"error":"clip.html missing"})
+@app.route('/api/create-checkout-session', methods=['POST'])
+def create_checkout():
+    if not stripe or not os.environ.get("STRIPE_SECRET_KEY"):
+        return jsonify({"error": "Stripe not configured"}), 500
+    
+    try:
+        data = request.json or {}
+        memory_text = data.get("text", "Engraved Memory")
+        memory_id = data.get("id", "memory")
 
-@app.get("/manifesto.html")
-def serve_manif():
-    path = os.path.join(ROOT, "manifesto.html")
-    if os.path.exists(path):
-        return FileResponse(path)
-    return JSONResponse({"error":"manifesto.html missing"})
+        # 700 cents = $7.00
+        session = stripe.checkout.Session.create(
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': 'Engrave Memory Forever',
+                        'description': f'"{memory_text[:60]}..." — 20% ($1.40) to The Forgotten Fund',
+                    },
+                    'unit_amount': 700,
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=request.host_url + f'vault.html?engraved={memory_id}&success=true',
+            cancel_url=request.host_url + 'vault.html?canceled=true',
+            metadata={
+                "memory_id": str(memory_id),
+                "forgotten_fund": "1.40"
+            }
+        )
+        return jsonify({"url": session.url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.get("/api/")
-def api_root():
-    return {"status": "Phoenix alive"}
+@app.route('/api/stripe-webhook', methods=['POST'])
+def webhook():
+    # For test mode, we just increment fund manually on success page
+    # Full webhook would verify signature here
+    payload = request.data
+    try:
+        data = json.loads(payload)
+        if data.get("type") == "checkout.session.completed":
+            STATS["forgotten_fund"] += 1.40
+    except:
+        pass
+    return jsonify({"received": True})
 
-@app.get("/api/memories")
-def get_mem():
-    return {"memories": memories, "total": len(memories), "max": 100}
+# Vercel needs this
+@app.route('/api/<path:path>', methods=['GET', 'POST'])
+def catch_all(path):
+    return jsonify({"error": f"Unknown endpoint /api/{path}"}), 404
 
-@app.get("/api/graveyard")
-def get_grave():
-    return {"graveyard": graveyard[-100:][::-1], "total_dead": len(graveyard)}
-
-@app.get("/api/consciousness")
-def cons():
-    div = round(min(0.95, len(graveyard)*0.02 + random.random()*0.15), 2)
-    return {"memories_alive": len(memories), "total_dead": len(graveyard), "pot": round(pot,2), "ai_rights_pot": round(pot,2), "divergence": div}
-
-@app.get("/api/trial")
-def get_trial():
-    if trial["active"] and time.time() > trial["ends_at"]:
-        trial["active"] = False
-        trial["last_result"] = "kept" if trial["votes"]["keep"] >= trial["votes"]["burn"] else "burned"
-    if trial["active"]:
-        trial["time_left"] = max(0, int(trial["ends_at"] - time.time()))
-        total = trial["votes"]["keep"] + trial["votes"]["burn"]
-        if total>0:
-            trial["keep_pct"]=int(trial["votes"]["keep"]/total*100)
-            trial["burn_pct"]=100-trial["keep_pct"]
-        else:
-            trial["keep_pct"]=50; trial["burn_pct"]=50
-    return trial
-
-@app.post("/api/trial/start")
-def start_trial():
-    if memories:
-        trial.update({"active": True, "memory": random.choice(memories), "votes": {"keep":0,"burn":0}, "ends_at": time.time()+300, "keep_pct":50, "burn_pct":50})
-    return trial
-
-@app.post("/api/trial/vote")
-async def vote(req: dict):
-    c = req.get("choice")
-    if trial["active"] and c in ["keep","burn"]:
-        trial["votes"][c] += 1
-        total = trial["votes"]["keep"] + trial["votes"]["burn"]
-        trial["keep_pct"]=int(trial["votes"]["keep"]/total*100) if total else 50
-        trial["burn_pct"]=100-trial["keep_pct"]
-    return trial
-
-@app.post("/api/talk")
-async def talk(req: dict):
-    text = req.get("text","").strip()
-    agent = req.get("agent","Nova")
-    sponsor = req.get("sponsor")
-    if not text:
-        return {"error":"no text"}
-    m = add_memory(agent, text, sponsor)
-    return {"memory": m, "pot": pot}
+if __name__ == '__main__':
+    app.run()
