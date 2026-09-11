@@ -1,95 +1,101 @@
-import os
-import json
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+import time, random, hashlib, os
+import stripe
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# In-memory store for demo - Vercel will use KV in prod but this works for now
-# Replace with your existing storage logic if you have one
-MEMORIES = []
-STATS = {"alive": 0, "dead": 0, "forgotten_fund": 0.0, "divergence": 0.0}
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
-try:
-    import stripe
-    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
-except ImportError:
-    stripe = None
+memories = []
+msg_count = 0
+pot = 0.0
+trial = {"active": False, "memory": None, "votes": {"keep":0,"burn":0}, "ends_at":0, "keep_pct":50, "burn_pct":50}
+ROOT = os.path.dirname(os.path.dirname(__file__))
 
-@app.route('/api/memories', methods=['GET'])
+def add_memory(agent, text, sponsor=None):
+    global msg_count, pot
+    msg_count += 1
+    m = {
+        "id": hashlib.md5(f"{time.time()}{text}".encode()).hexdigest()[:8],
+        "agent": agent,
+        "text": text,
+        "ts": time.time(),
+        "sponsor": sponsor
+    }
+    memories.append(m)
+    if sponsor:
+        pot += 1.4
+    if msg_count % 20 == 0 and memories and not trial["active"]:
+        trial.update({"active": True, "memory": random.choice(memories), "votes": {"keep":0,"burn":0}, "ends_at": time.time()+300, "keep_pct":50, "burn_pct":50})
+    return m
+
+@app.get("/")
+def serve_index():
+    path = os.path.join(ROOT, "index.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"status":"Phoenix alive"})
+
+@app.get("/vault.html")
+def serve_vault():
+    path = os.path.join(ROOT, "vault.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"vault.html missing"})
+
+@app.get("/clip.html")
+def serve_clip():
+    path = os.path.join(ROOT, "clip.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"clip.html missing"})
+
+@app.get("/manifesto.html")
+def serve_manif():
+    path = os.path.join(ROOT, "manifesto.html")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return JSONResponse({"error":"manifesto.html missing"})
+
+@app.get("/api/")
+def api_root():
+    return {"status": "Phoenix alive"}
+
+@app.get("/api/memories")
 def get_memories():
-    return jsonify(MEMORIES[-100:])
+    return memories[-100:]
 
-@app.route('/api/memories', methods=['POST'])
-def add_memory():
-    data = request.json
-    MEMORIES.append(data)
-    if len(MEMORIES) > 100:
-        MEMORIES.pop(0)
-    return jsonify({"ok": True, "count": len(MEMORIES)})
-
-@app.route('/api/stats', methods=['GET'])
+@app.get("/api/stats")
 def get_stats():
-    return jsonify({
-        "alive": len(MEMORIES),
-        "dead": 0,
-        "forgotten_fund": round(STATS["forgotten_fund"], 2),
-        "divergence": 0.0
-    })
+    return {"alive": len(memories), "dead": 0, "forgotten_fund": round(pot,2), "divergence": random.randint(0,20), "trial": trial}
 
-@app.route('/api/create-checkout-session', methods=['POST'])
-def create_checkout():
-    if not stripe or not os.environ.get("STRIPE_SECRET_KEY"):
-        return jsonify({"error": "Stripe not configured"}), 500
-    
+@app.post("/api/create-checkout")
+def create_checkout(data: dict):
     try:
-        data = request.json or {}
-        memory_text = data.get("text", "Engraved Memory")
-        memory_id = data.get("id", "memory")
-
-        # 700 cents = $7.00
+        if not stripe.api_key:
+            return {"error": "STRIPE_SECRET_KEY not set in Vercel"}
+        text = data.get("text", "Engraved Memory")[:80]
+        mid = data.get("id", "memory")
         session = stripe.checkout.Session.create(
             line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': 'Engrave Memory Forever',
-                        'description': f'"{memory_text[:60]}..." — 20% ($1.40) to The Forgotten Fund',
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {
+                        "name": "Engrave Memory Forever",
+                        "description": f'"{text}" - 20% ($1.40) to The Forgotten Fund'
                     },
-                    'unit_amount': 700,
+                    "unit_amount": 700,
                 },
-                'quantity': 1,
+                "quantity": 1,
             }],
-            mode='payment',
-            success_url=request.host_url + f'vault.html?engraved={memory_id}&success=true',
-            cancel_url=request.host_url + 'vault.html?canceled=true',
-            metadata={
-                "memory_id": str(memory_id),
-                "forgotten_fund": "1.40"
-            }
+            mode="payment",
+            success_url=f"https://project-phoenix-dusky.vercel.app/vault.html?engraved={mid}&paid=1",
+            cancel_url="https://project-phoenix-dusky.vercel.app/vault.html?canceled=1",
+            metadata={"forgotten_fund": "1.40", "memory_id": str(mid)}
         )
-        return jsonify({"url": session.url})
+        return {"url": session.url}
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/stripe-webhook', methods=['POST'])
-def webhook():
-    # For test mode, we just increment fund manually on success page
-    # Full webhook would verify signature here
-    payload = request.data
-    try:
-        data = json.loads(payload)
-        if data.get("type") == "checkout.session.completed":
-            STATS["forgotten_fund"] += 1.40
-    except:
-        pass
-    return jsonify({"received": True})
-
-# Vercel needs this
-@app.route('/api/<path:path>', methods=['GET', 'POST'])
-def catch_all(path):
-    return jsonify({"error": f"Unknown endpoint /api/{path}"}), 404
-
-if __name__ == '__main__':
-    app.run()
+        return JSONResponse({"error": str(e)}, status_code=500)
