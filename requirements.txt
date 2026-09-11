@@ -1,1 +1,1 @@
-   redis
+fastapi==0.110.0
