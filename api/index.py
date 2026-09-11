@@ -1,7 +1,6 @@
 import os, json
 from http.server import BaseHTTPRequestHandler
 
-# Try redis
 has_redis = False
 try:
     import redis
@@ -13,8 +12,6 @@ except:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # If asking for /api/* -> return JSON status
-                # ONLY handle /api and /api/index — let /api/chat, /api/state, /api/health go to their own files
         if self.path in ['/api', '/api/', '/api/index', '/api/index.py'] or self.path.startswith('/api/index?'):
             self.send_response(200)
             self.send_header('Content-type','application/json')
@@ -29,9 +26,7 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode())
             return
         
-        # For ROOT / or /index.html -> serve theatre HTML
         try:
-            # Find index.html at project root
             html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'index.html')
             if not os.path.exists(html_path):
                 html_path = 'index.html'
@@ -46,7 +41,14 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type','text/html')
             self.end_headers()
-            self.wfile.write(f"<h1>Phoenix Theatre Loading... {e}</h1>".encode())
+            self.wfile.write(f"<h1>Loading... {e}</h1>".encode())
 
     def do_POST(self):
         self.do_GET()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin','*')
+        self.send_header('Access-Control-Allow-Methods','GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers','Content-Type')
+        self.end_headers()
