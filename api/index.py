@@ -121,4 +121,4 @@ async def talk(req: dict):
         is_paid = True
     if not text: return {"error":"text required"}
     mem = add_memory(agent, text, sponsor, is_paid)
-    return {"memory": mem, "pot
+    return {"memory": mem, "pot": forgotten_fund_pot}
